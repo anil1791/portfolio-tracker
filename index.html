@@ -83,6 +83,9 @@ tr:hover td{background:#fbfbf7}
     <div class="bellw"><button class="btn btn-sm" onclick="switchTab('reminders')" title="Reminders">🔔<span class="bell-dot" id="bdot" style="display:none"></span></button></div>
     <button class="btn btn-blue" onclick="doFetch()" id="fb">⟳ Refresh</button>
     <button class="btn btn-grn" onclick="doExcel()">↓ Excel</button>
+    <button class="btn" onclick="exportJSON()" title="Backup data">💾 Backup</button>
+    <button class="btn" onclick="I('imp').click()" title="Restore data">📂 Restore</button>
+    <input type="file" id="imp" accept=".json" style="display:none" onchange="importJSON(event)"/>
   </div>
 </div>
 
@@ -236,6 +239,16 @@ tr:hover td{background:#fbfbf7}
             <div style="font-size:11px;color:var(--mut)">Live 24K rate se auto-calculate</div>
           </div>
         </div>
+      </div>
+    </div>
+    <div class="pnl" style="margin-bottom:13px">
+      <div class="ph">💾 Data Backup / Restore</div>
+      <div class="pb">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+          <button class="btn btn-grn" onclick="exportJSON()">💾 Export Backup (JSON)</button>
+          <button class="btn btn-blue" onclick="I('imp').click()">📂 Import Backup</button>
+        </div>
+        <div style="font-size:12px;color:var(--mut)">Export se ek JSON file download hogi jisme saara data hai — values, history, reminders sab. Import se wo data wapas restore ho jayega. Naya browser ya device pe bhi kaam karega.</div>
       </div>
     </div>
     <div class="pnl"><div class="ph">Auto-refresh</div>
@@ -547,6 +560,33 @@ function doExcel(){
   const ws2=XLSX.utils.aoa_to_sheet(d2);ws2['!cols']=Array(10).fill({wch:13});
   XLSX.utils.book_append_sheet(wb,ws2,'Monthly History');
   XLSX.writeFile(wb,'portfolio_'+new Date().toISOString().split('T')[0]+'.xlsx');
+}
+
+// EXPORT / IMPORT
+function exportJSON(){
+  const data={version:3,date:new Date().toISOString(),cv:CV,hist:HIST,reminders:reminders,checklist:checklist};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='portfolio_backup_'+new Date().toISOString().split('T')[0]+'.json';
+  a.click();URL.revokeObjectURL(a.href);
+}
+function importJSON(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const data=JSON.parse(ev.target.result);
+      if(data.cv)Object.assign(CV,data.cv);
+      if(data.hist&&Array.isArray(data.hist)){HIST=data.hist;}
+      if(data.reminders)reminders=data.reminders;
+      if(data.checklist)checklist=data.checklist;
+      save();renderH();renderHist();renderRem();
+      alert('✅ Data restore ho gaya! ('+file.name+')');
+    }catch(err){alert('❌ Invalid file — sahi JSON backup file select karo.');}
+  };
+  reader.readAsText(file);
+  e.target.value='';
 }
 
 // INIT
