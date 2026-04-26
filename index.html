@@ -86,6 +86,8 @@ tr:hover td{background:#fbfbf7}
     <button class="btn" onclick="exportJSON()" title="Backup data">💾 Backup</button>
     <button class="btn" onclick="I('imp').click()" title="Restore data">📂 Restore</button>
     <input type="file" id="imp" accept=".json" style="display:none" onchange="importJSON(event)"/>
+    <button class="btn" onclick="cloudSync()" id="syncBtn" title="Cloud Sync">☁️ Sync</button>
+    <span id="syncSt" style="font-size:10px;color:var(--mut);display:none"></span>
   </div>
 </div>
 
@@ -239,6 +241,22 @@ tr:hover td{background:#fbfbf7}
             <div style="font-size:11px;color:var(--mut)">Live 24K rate se auto-calculate</div>
           </div>
         </div>
+      </div>
+    </div>
+    <div class="pnl" style="margin-bottom:13px">
+      <div class="ph">☁️ GitHub Gist Cloud Sync</div>
+      <div class="pb">
+        <div class="ntc" style="margin-bottom:10px">🔑 GitHub pe jao → Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token → Sirf <b>"gist"</b> scope tick karo → Token copy karo aur neeche paste karo.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:10px">
+          <div class="ff"><label>GitHub Token</label><input type="password" id="ght" placeholder="ghp_xxxxxxxxxxxx" oninput="localStorage.setItem('gh_token',this.value)"/></div>
+          <div class="ff"><label>Gist ID <span style="font-weight:400;color:var(--mut)">(auto-create hoga)</span></label><input id="ghg" placeholder="Auto-generated" oninput="localStorage.setItem('gh_gist',this.value)"/></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+          <button class="btn btn-blue" onclick="cloudSync()">☁️ Push to Cloud</button>
+          <button class="btn btn-grn" onclick="cloudPull()">⬇️ Pull from Cloud</button>
+          <span id="syncMsg" style="font-size:12px;display:none"></span>
+        </div>
+        <div style="font-size:12px;color:var(--mut)">Data GitHub Gist mein securely save hoga. Kisi bhi browser/device se sync hoga. Token sirf local browser mein rehta hai.</div>
       </div>
     </div>
     <div class="pnl" style="margin-bottom:13px">
@@ -528,6 +546,7 @@ function saveKey(p,v){if(v)localStorage.setItem('key_'+p,v);}
 function setRI(){const ms=parseInt(I('ri').value);if(rtmr)clearInterval(rtmr);if(ms>0)rtmr=setInterval(doFetch,ms);}
 
 // STORAGE
+let _syncTimer=null;
 function save(){
   try{
     localStorage.setItem('pf_v',JSON.stringify(CV));
@@ -535,6 +554,11 @@ function save(){
     localStorage.setItem('pf_r',JSON.stringify(reminders));
     localStorage.setItem('pf_c',JSON.stringify(checklist));
   }catch(e){}
+  // Auto cloud sync (debounced 5s)
+  if(localStorage.getItem('gh_token')&&localStorage.getItem('gh_gist')){
+    clearTimeout(_syncTimer);
+    _syncTimer=setTimeout(()=>cloudSync(),5000);
+  }
 }
 function loadData(){
   try{
@@ -544,6 +568,9 @@ function loadData(){
     const cl=localStorage.getItem('pf_c');if(cl)checklist=JSON.parse(cl);
     const zk=localStorage.getItem('key_zerodha'),ek=localStorage.getItem('key_etrade');
     if(zk)I('zk').value=zk;if(ek)I('ek').value=ek;
+    const ght=localStorage.getItem('gh_token'),ghg=localStorage.getItem('gh_gist');
+    if(ght&&I('ght'))I('ght').value=ght;
+    if(ghg&&I('ghg'))I('ghg').value=ghg;
   }catch(e){}
 }
 
@@ -560,6 +587,61 @@ function doExcel(){
   const ws2=XLSX.utils.aoa_to_sheet(d2);ws2['!cols']=Array(10).fill({wch:13});
   XLSX.utils.book_append_sheet(wb,ws2,'Monthly History');
   XLSX.writeFile(wb,'portfolio_'+new Date().toISOString().split('T')[0]+'.xlsx');
+}
+
+// CLOUD SYNC (GitHub Gist)
+function getSyncData(){
+  return{version:3,date:new Date().toISOString(),cv:CV,hist:HIST,reminders:reminders,checklist:checklist};
+}
+function showSync(msg,ok){
+  const el=I('syncMsg');el.textContent=msg;el.style.color=ok?'var(--pos)':'var(--neg)';el.style.display='inline';
+  setTimeout(()=>el.style.display='none',4000);
+  const st=I('syncSt');st.textContent=ok?'☁️ Synced':'⚠️ Sync fail';st.style.color=ok?'var(--pos)':'var(--neg)';st.style.display='inline';
+  setTimeout(()=>st.style.display='none',5000);
+}
+async function cloudSync(){
+  const token=localStorage.getItem('gh_token');if(!token){alert('Pehle Settings mein GitHub Token daalo!');switchTab('settings');return;}
+  const btn=I('syncBtn');btn.innerHTML='<span class="spin"></span>';btn.disabled=true;
+  try{
+    let gid=localStorage.getItem('gh_gist');
+    const body=JSON.stringify({description:'Portfolio Tracker Data (auto-sync)',public:false,files:{'portfolio_data.json':{content:JSON.stringify(getSyncData(),null,2)}}});
+    let r;
+    if(gid){
+      r=await fetch('https://api.github.com/gists/'+gid,{method:'PATCH',headers:{'Authorization':'token '+token,'Content-Type':'application/json'},body:body});
+      if(r.status===404){gid=null;}
+    }
+    if(!gid){
+      r=await fetch('https://api.github.com/gists',{method:'POST',headers:{'Authorization':'token '+token,'Content-Type':'application/json'},body:body});
+    }
+    if(r&&r.ok){
+      const d=await r.json();
+      localStorage.setItem('gh_gist',d.id);if(I('ghg'))I('ghg').value=d.id;
+      showSync('✅ Cloud sync done!',true);
+    }else{
+      const err=await r.text();
+      showSync('❌ Sync fail — token check karo',false);
+      console.error('Gist sync error:',err);
+    }
+  }catch(e){showSync('❌ Network error',false);console.error(e);}
+  btn.innerHTML='☁️ Sync';btn.disabled=false;
+}
+async function cloudPull(){
+  const token=localStorage.getItem('gh_token'),gid=localStorage.getItem('gh_gist');
+  if(!token||!gid){alert('Token aur Gist ID dono chahiye! Pehle ek baar Push karo.');return;}
+  try{
+    const r=await fetch('https://api.github.com/gists/'+gid,{headers:{'Authorization':'token '+token}});
+    if(!r.ok){showSync('❌ Pull fail — '+r.status,false);return;}
+    const d=await r.json();
+    const content=d.files['portfolio_data.json']?.content;
+    if(!content){showSync('❌ Gist mein data nahi mila',false);return;}
+    const data=JSON.parse(content);
+    if(data.cv)Object.assign(CV,data.cv);
+    if(data.hist&&Array.isArray(data.hist))HIST=data.hist;
+    if(data.reminders)reminders=data.reminders;
+    if(data.checklist)checklist=data.checklist;
+    save();renderH();renderHist();renderRem();
+    showSync('✅ Cloud se data restore ho gaya!',true);
+  }catch(e){showSync('❌ Network error',false);console.error(e);}
 }
 
 // EXPORT / IMPORT
