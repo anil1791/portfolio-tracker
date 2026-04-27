@@ -243,29 +243,13 @@ tr:hover td{background:#fbfbf7}
       </div>
     </div>
     <div class="pnl" style="margin-bottom:13px">
-      <div class="ph">☁️ Cloud Sync <span id="syncBadge" style="font-size:11px;font-weight:400;color:var(--pos)"></span></div>
+      <div class="ph">☁️ Cloud Sync <span id="syncBadge" style="font-size:11px;font-weight:400;color:var(--pos)">• Auto-sync ON</span></div>
       <div class="pb">
-        <div id="cloudSetup" style="display:none">
-          <div class="ntc" style="margin-bottom:10px">🚀 <b>One-time setup:</b> Pehli baar cloud save ho gaya! Ab neeche dikha hua <b>CLOUD_ID</b> code mein daalo aur GitHub pe commit karo. Uske baad <b>har browser pe automatic sync</b> hoga!</div>
-          <div style="background:#f0f5ff;border:2px solid var(--blue);border-radius:8px;padding:12px;margin-bottom:10px;font-family:monospace;font-size:13px;word-break:break-all">
-            const CLOUD_ID = '<span id="cidShow" style="color:var(--blue);font-weight:700"></span>';
-          </div>
-          <div style="font-size:12px;color:var(--mut);margin-bottom:8px">↑ Ye line code mein <code>&lt;script&gt;</code> ke baad wali <code>CLOUD_ID</code> line mein paste karo, phir GitHub pe commit karo. Bas ek baar!</div>
-          <button class="btn btn-sm" onclick="navigator.clipboard.writeText(I('cidShow').textContent).then(()=>alert('✅ Cloud ID copied!'))">Copy Cloud ID</button>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <span style="font-size:22px">✅</span>
+          <div><b style="font-size:14px">Auto-Sync Active</b><br><span style="font-size:12px;color:var(--mut)">Data har change pe automatically cloud pe save hota hai aur page open karte hi load hota hai.</span></div>
         </div>
-        <div id="cloudActive" style="display:none">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-            <span style="font-size:22px">✅</span>
-            <div><b style="font-size:14px">Auto-Sync Active</b><br><span style="font-size:12px;color:var(--mut)">Data har change pe automatically cloud pe save hota hai aur page open karte hi load hota hai.</span></div>
-          </div>
-          <div style="font-size:11px;color:var(--mut)">Cloud ID: <code id="cidActive" style="font-size:11px"></code></div>
-          <span id="syncMsg" style="font-size:12px;display:none"></span>
-        </div>
-        <div id="cloudOff" style="display:none">
-          <div style="color:var(--mut);font-size:13px">Cloud sync abhi off hai. Pehli baar setup karne ke liye neeche button click karo:</div>
-          <button class="btn btn-blue" style="margin-top:8px" onclick="firstCloudSave()">☁️ Pehli Baar Cloud Setup Karo</button>
-          <span id="syncMsg2" style="font-size:12px;display:none;margin-left:8px"></span>
-        </div>
+        <span id="syncMsg" style="font-size:12px;display:none"></span>
       </div>
     </div>
     <div class="pnl" style="margin-bottom:13px">
@@ -306,9 +290,7 @@ tr:hover td{background:#fbfbf7}
 
 <script>
 // ============================================
-// CLOUD ID: Pehli baar setup ke baad yahan paste karo
-// Example: const CLOUD_ID = 'abc123def456';
-const CLOUD_ID = '';
+const CLOUD_ID = '019dcd8a-0ee3-758e-a82f-e328890affef';
 // ============================================
 
 const ASSETS=[
@@ -573,8 +555,7 @@ function save(){
     localStorage.setItem('pf_date',now);
   }catch(e){}
   // Auto cloud sync (debounced 3s)
-  const cid=CLOUD_ID||localStorage.getItem('cloud_id');
-  if(cid){
+  if(CLOUD_ID){
     clearTimeout(_syncTimer);
     _syncTimer=setTimeout(()=>autoCloudPush(),3000);
   }
@@ -605,68 +586,27 @@ function doExcel(){
   XLSX.writeFile(wb,'portfolio_'+new Date().toISOString().split('T')[0]+'.xlsx');
 }
 
-// CLOUD SYNC (npoint.io — free, no signup, no token, CORS enabled)
-const CLOUD_API='https://api.npoint.io';
-function getCloudId(){return CLOUD_ID||localStorage.getItem('cloud_id')||'';}
+// CLOUD SYNC (JSONBlob — fully automatic, ID already created)
+const CLOUD_API='https://jsonblob.com/api/jsonBlob';
 function getSyncData(){
   return{version:3,date:new Date().toISOString(),cv:CV,hist:HIST,reminders:reminders,checklist:checklist};
 }
 function showSync(msg,ok){
-  ['syncMsg','syncMsg2'].forEach(id=>{const el=I(id);if(el){el.textContent=msg;el.style.color=ok?'var(--pos)':'var(--neg)';el.style.display='inline';setTimeout(()=>el.style.display='none',4000);}});
+  const el=I('syncMsg');if(el){el.textContent=msg;el.style.color=ok?'var(--pos)':'var(--neg)';el.style.display='inline';setTimeout(()=>el.style.display='none',4000);}
   const st=I('syncSt');if(st){st.textContent=ok?'☁️ Synced':'⚠️';st.style.color=ok?'var(--pos)':'var(--neg)';st.style.display='inline';setTimeout(()=>st.style.display='none',5000);}
 }
-function updateCloudUI(){
-  const cid=getCloudId();
-  const setup=I('cloudSetup'),active=I('cloudActive'),off=I('cloudOff'),badge=I('syncBadge');
-  if(CLOUD_ID){
-    if(setup)setup.style.display='none';if(active)active.style.display='block';if(off)off.style.display='none';
-    if(I('cidActive'))I('cidActive').textContent=CLOUD_ID;
-    if(badge)badge.textContent='• Auto-sync ON';
-  }else if(cid){
-    if(setup)setup.style.display='block';if(active)active.style.display='none';if(off)off.style.display='none';
-    if(I('cidShow'))I('cidShow').textContent=cid;
-    if(badge){badge.textContent='• Setup pending';badge.style.color='var(--amb)';}
-  }else{
-    if(setup)setup.style.display='none';if(active)active.style.display='none';if(off)off.style.display='block';
-    if(badge){badge.textContent='• Off';badge.style.color='var(--mut)';}
-  }
-}
 async function autoCloudPush(){
-  const cid=getCloudId();if(!cid)return;
+  if(!CLOUD_ID)return;
   try{
-    await fetch(CLOUD_API+'/'+cid,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(getSyncData())});
-    showSync('☁️ Synced',true);
+    const r=await fetch(CLOUD_API+'/'+CLOUD_ID,{method:'PUT',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(getSyncData())});
+    if(r.ok)showSync('☁️ Synced',true);
+    else console.error('Sync fail:',r.status);
   }catch(e){console.error('Auto-sync fail:',e);}
 }
-async function firstCloudSave(){
-  try{
-    const r=await fetch(CLOUD_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(getSyncData())});
-    if(r.ok){
-      const data=await r.json();
-      // npoint returns the full URL, extract the ID
-      let cid='';
-      if(data.id)cid=data.id;
-      else if(typeof data==='string')cid=data;
-      else{
-        // try to get from response - npoint returns the bin path
-        const txt=JSON.stringify(data);
-        const match=txt.match(/[a-f0-9]{20,}/i);
-        if(match)cid=match[0];
-      }
-      if(!cid){
-        // If ID not in response, try the redirect approach
-        showSync('❌ ID nahi mila — retry karo',false);return;
-      }
-      localStorage.setItem('cloud_id',cid);
-      updateCloudUI();
-      showSync('✅ Cloud ID: '+cid+' — ab code mein daalo!',true);
-    }else{showSync('❌ Save fail ('+r.status+')',false);}
-  }catch(e){showSync('❌ Network error: '+e.message,false);console.error(e);}
-}
 async function autoCloudLoad(){
-  const cid=getCloudId();if(!cid)return;
+  if(!CLOUD_ID)return;
   try{
-    const r=await fetch(CLOUD_API+'/'+cid);
+    const r=await fetch(CLOUD_API+'/'+CLOUD_ID,{headers:{'Accept':'application/json'}});
     if(!r.ok)return;
     const data=await r.json();
     if(!data.cv)return;
@@ -711,8 +651,7 @@ function importJSON(e){
 }
 
 // INIT
-loadData();renderH();renderHist();updateCloudUI();
-// Auto-load from cloud on page open
+loadData();renderH();renderHist();
 autoCloudLoad();
 </script>
 </body>
