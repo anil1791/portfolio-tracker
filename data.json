@@ -1,0 +1,198 @@
+{
+  "version": 3,
+  "date": "2026-04-27T11:38:32.353Z",
+  "cv": {
+    "ppf": 315792,
+    "epf": 1471374,
+    "sp500": 2412354,
+    "nifty": 2582950,
+    "gold": 1500000,
+    "midcap": 446000,
+    "small": 1114000
+  },
+  "hist": [
+    {
+      "month": "Jan 2024",
+      "ppf": 50000,
+      "epf": 700000,
+      "sp500": 1068740,
+      "nifty": 235000,
+      "gold": 617500,
+      "midcap": 217000,
+      "small": 464000
+    },
+    {
+      "month": "Feb 2024",
+      "ppf": 62500,
+      "epf": 720838,
+      "sp500": 1089523,
+      "nifty": 260737,
+      "gold": 640000,
+      "midcap": 258000,
+      "small": 648000
+    },
+    {
+      "month": "Mar 2024",
+      "ppf": 75000,
+      "epf": 742258,
+      "sp500": 1567616,
+      "nifty": 331135,
+      "gold": 640000,
+      "midcap": 281878,
+      "small": 702423
+    },
+    {
+      "month": "Apr 2024",
+      "ppf": 89053,
+      "epf": 763678,
+      "sp500": 1567616,
+      "nifty": 347207,
+      "gold": 700000,
+      "midcap": 290776,
+      "small": 761513
+    },
+    {
+      "month": "May 2024",
+      "ppf": 101553,
+      "epf": 785098,
+      "sp500": 1432573,
+      "nifty": 381284,
+      "gold": 720000,
+      "midcap": 300000,
+      "small": 850000
+    },
+    {
+      "month": "Jun 2024",
+      "ppf": 114053,
+      "epf": 806518,
+      "sp500": 1500000,
+      "nifty": 435164,
+      "gold": 720000,
+      "midcap": 300000,
+      "small": 850000
+    },
+    {
+      "month": "Jul 2024",
+      "ppf": 126553,
+      "epf": 827938,
+      "sp500": 1660000,
+      "nifty": 536900,
+      "gold": 730000,
+      "midcap": 333000,
+      "small": 988284
+    },
+    {
+      "month": "Dec 2024",
+      "ppf": 164000,
+      "epf": 964522,
+      "sp500": 1865000,
+      "nifty": 676900,
+      "gold": 750000,
+      "midcap": 333000,
+      "small": 1132000
+    },
+    {
+      "month": "Mar 2025",
+      "ppf": 164000,
+      "epf": 1029782,
+      "sp500": 2456840,
+      "nifty": 891000,
+      "gold": 890000,
+      "midcap": 317000,
+      "small": 994000
+    },
+    {
+      "month": "Apr 2025",
+      "ppf": 186500,
+      "epf": 1073478,
+      "sp500": 2456840,
+      "nifty": 750000,
+      "gold": 1000000,
+      "midcap": 350000,
+      "small": 1029000
+    },
+    {
+      "month": "May 2025",
+      "ppf": 186500,
+      "epf": 1095754,
+      "sp500": 2800000,
+      "nifty": 844600,
+      "gold": 1000000,
+      "midcap": 365964,
+      "small": 1071000
+    },
+    {
+      "month": "Jun 2025",
+      "ppf": 199000,
+      "epf": 1118000,
+      "sp500": 2700000,
+      "nifty": 968400,
+      "gold": 1000000,
+      "midcap": 368964,
+      "small": 1074000
+    },
+    {
+      "month": "Jul 2025",
+      "ppf": 211500,
+      "epf": 1217312,
+      "sp500": 3400000,
+      "nifty": 2125200,
+      "gold": 1000000,
+      "midcap": 400000,
+      "small": 1153000
+    },
+    {
+      "month": "Aug 2025",
+      "ppf": 224000,
+      "epf": 1277938,
+      "sp500": 3400000,
+      "nifty": 2181000,
+      "gold": 1000000,
+      "midcap": 400000,
+      "small": 1153000
+    },
+    {
+      "month": "Mar 2026",
+      "ppf": 286500,
+      "epf": 1471374,
+      "sp500": 2412354,
+      "nifty": 2582950,
+      "gold": 1500000,
+      "midcap": 446000,
+      "small": 1114000
+    }
+  ],
+  "reminders": [],
+  "checklist": [
+    {
+      "id": "epf",
+      "text": "EPF passbook check karo (EPFO site)",
+      "done": false
+    },
+    {
+      "id": "paytm",
+      "text": "Paytm Money MF values update karo",
+      "done": false
+    },
+    {
+      "id": "snap",
+      "text": "Portfolio snapshot lo (History tab)",
+      "done": false
+    },
+    {
+      "id": "gold",
+      "text": "Gold rate + quantity verify karo",
+      "done": false
+    },
+    {
+      "id": "us",
+      "text": "E-Trade account check karo (US market)",
+      "done": false
+    },
+    {
+      "id": "rev",
+      "text": "Asset allocation review — rebalance needed?",
+      "done": false
+    }
+  ]
+}
