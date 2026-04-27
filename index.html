@@ -86,7 +86,6 @@ tr:hover td{background:#fbfbf7}
     <button class="btn" onclick="exportJSON()" title="Backup data">💾 Backup</button>
     <button class="btn" onclick="I('imp').click()" title="Restore data">📂 Restore</button>
     <input type="file" id="imp" accept=".json" style="display:none" onchange="importJSON(event)"/>
-    <button class="btn" onclick="cloudSync()" id="syncBtn" title="Cloud Sync">☁️ Sync</button>
     <span id="syncSt" style="font-size:10px;color:var(--mut);display:none"></span>
   </div>
 </div>
@@ -244,19 +243,29 @@ tr:hover td{background:#fbfbf7}
       </div>
     </div>
     <div class="pnl" style="margin-bottom:13px">
-      <div class="ph">☁️ GitHub Gist Cloud Sync</div>
+      <div class="ph">☁️ Cloud Sync <span id="syncBadge" style="font-size:11px;font-weight:400;color:var(--pos)"></span></div>
       <div class="pb">
-        <div class="ntc" style="margin-bottom:10px">🔑 GitHub pe jao → Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token → Sirf <b>"gist"</b> scope tick karo → Token copy karo aur neeche paste karo.</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:10px">
-          <div class="ff"><label>GitHub Token</label><input type="password" id="ght" placeholder="ghp_xxxxxxxxxxxx" oninput="localStorage.setItem('gh_token',this.value)"/></div>
-          <div class="ff"><label>Gist ID <span style="font-weight:400;color:var(--mut)">(auto-create hoga)</span></label><input id="ghg" placeholder="Auto-generated" oninput="localStorage.setItem('gh_gist',this.value)"/></div>
+        <div id="cloudSetup" style="display:none">
+          <div class="ntc" style="margin-bottom:10px">🚀 <b>One-time setup:</b> Pehli baar cloud save ho gaya! Ab neeche dikha hua <b>CLOUD_ID</b> code mein daalo aur GitHub pe commit karo. Uske baad <b>har browser pe automatic sync</b> hoga!</div>
+          <div style="background:#f0f5ff;border:2px solid var(--blue);border-radius:8px;padding:12px;margin-bottom:10px;font-family:monospace;font-size:13px;word-break:break-all">
+            const CLOUD_ID = '<span id="cidShow" style="color:var(--blue);font-weight:700"></span>';
+          </div>
+          <div style="font-size:12px;color:var(--mut);margin-bottom:8px">↑ Ye line code mein <code>&lt;script&gt;</code> ke baad wali <code>CLOUD_ID</code> line mein paste karo, phir GitHub pe commit karo. Bas ek baar!</div>
+          <button class="btn btn-sm" onclick="navigator.clipboard.writeText(I('cidShow').textContent).then(()=>alert('✅ Cloud ID copied!'))">Copy Cloud ID</button>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-          <button class="btn btn-blue" onclick="cloudSync()">☁️ Push to Cloud</button>
-          <button class="btn btn-grn" onclick="cloudPull()">⬇️ Pull from Cloud</button>
+        <div id="cloudActive" style="display:none">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <span style="font-size:22px">✅</span>
+            <div><b style="font-size:14px">Auto-Sync Active</b><br><span style="font-size:12px;color:var(--mut)">Data har change pe automatically cloud pe save hota hai aur page open karte hi load hota hai.</span></div>
+          </div>
+          <div style="font-size:11px;color:var(--mut)">Cloud ID: <code id="cidActive" style="font-size:11px"></code></div>
           <span id="syncMsg" style="font-size:12px;display:none"></span>
         </div>
-        <div style="font-size:12px;color:var(--mut)">Data GitHub Gist mein securely save hoga. Kisi bhi browser/device se sync hoga. Token sirf local browser mein rehta hai.</div>
+        <div id="cloudOff" style="display:none">
+          <div style="color:var(--mut);font-size:13px">Cloud sync abhi off hai. Pehli baar setup karne ke liye neeche button click karo:</div>
+          <button class="btn btn-blue" style="margin-top:8px" onclick="firstCloudSave()">☁️ Pehli Baar Cloud Setup Karo</button>
+          <span id="syncMsg2" style="font-size:12px;display:none;margin-left:8px"></span>
+        </div>
       </div>
     </div>
     <div class="pnl" style="margin-bottom:13px">
@@ -296,6 +305,12 @@ tr:hover td{background:#fbfbf7}
 </div>
 
 <script>
+// ============================================
+// CLOUD ID: Pehli baar setup ke baad yahan paste karo
+// Example: const CLOUD_ID = 'abc123def456';
+const CLOUD_ID = '';
+// ============================================
+
 const ASSETS=[
   {id:'ppf',  name:'PPF',           short:'PPF',    platform:'Bank PPF',     source:'formula',color:'#1a7a3a'},
   {id:'epf',  name:'EPF',           short:'EPF',    platform:'EPFO Portal',  source:'manual', color:'#e07b00'},
@@ -547,17 +562,21 @@ function setRI(){const ms=parseInt(I('ri').value);if(rtmr)clearInterval(rtmr);if
 
 // STORAGE
 let _syncTimer=null;
+// also save timestamp for cloud comparison
 function save(){
   try{
+    const now=new Date().toISOString();
     localStorage.setItem('pf_v',JSON.stringify(CV));
     localStorage.setItem('pf_h',JSON.stringify(HIST.filter(r=>r._added)));
     localStorage.setItem('pf_r',JSON.stringify(reminders));
     localStorage.setItem('pf_c',JSON.stringify(checklist));
+    localStorage.setItem('pf_date',now);
   }catch(e){}
-  // Auto cloud sync (debounced 5s)
-  if(localStorage.getItem('gh_token')&&localStorage.getItem('gh_gist')){
+  // Auto cloud sync (debounced 3s)
+  const cid=CLOUD_ID||localStorage.getItem('cloud_id');
+  if(cid){
     clearTimeout(_syncTimer);
-    _syncTimer=setTimeout(()=>cloudSync(),5000);
+    _syncTimer=setTimeout(()=>autoCloudPush(),3000);
   }
 }
 function loadData(){
@@ -568,9 +587,6 @@ function loadData(){
     const cl=localStorage.getItem('pf_c');if(cl)checklist=JSON.parse(cl);
     const zk=localStorage.getItem('key_zerodha'),ek=localStorage.getItem('key_etrade');
     if(zk)I('zk').value=zk;if(ek)I('ek').value=ek;
-    const ght=localStorage.getItem('gh_token'),ghg=localStorage.getItem('gh_gist');
-    if(ght&&I('ght'))I('ght').value=ght;
-    if(ghg&&I('ghg'))I('ghg').value=ghg;
   }catch(e){}
 }
 
@@ -589,59 +605,72 @@ function doExcel(){
   XLSX.writeFile(wb,'portfolio_'+new Date().toISOString().split('T')[0]+'.xlsx');
 }
 
-// CLOUD SYNC (GitHub Gist)
+// CLOUD SYNC (JSONBlob — fully automatic)
+const CLOUD_API='https://jsonblob.com/api/jsonBlob';
+function getCloudId(){return CLOUD_ID||localStorage.getItem('cloud_id')||'';}
 function getSyncData(){
   return{version:3,date:new Date().toISOString(),cv:CV,hist:HIST,reminders:reminders,checklist:checklist};
 }
 function showSync(msg,ok){
-  const el=I('syncMsg');el.textContent=msg;el.style.color=ok?'var(--pos)':'var(--neg)';el.style.display='inline';
-  setTimeout(()=>el.style.display='none',4000);
-  const st=I('syncSt');st.textContent=ok?'☁️ Synced':'⚠️ Sync fail';st.style.color=ok?'var(--pos)':'var(--neg)';st.style.display='inline';
-  setTimeout(()=>st.style.display='none',5000);
+  ['syncMsg','syncMsg2'].forEach(id=>{const el=I(id);if(el){el.textContent=msg;el.style.color=ok?'var(--pos)':'var(--neg)';el.style.display='inline';setTimeout(()=>el.style.display='none',4000);}});
+  const st=I('syncSt');if(st){st.textContent=ok?'☁️ Synced':'⚠️';st.style.color=ok?'var(--pos)':'var(--neg)';st.style.display='inline';setTimeout(()=>st.style.display='none',5000);}
 }
-async function cloudSync(){
-  const token=localStorage.getItem('gh_token');if(!token){alert('Pehle Settings mein GitHub Token daalo!');switchTab('settings');return;}
-  const btn=I('syncBtn');btn.innerHTML='<span class="spin"></span>';btn.disabled=true;
-  try{
-    let gid=localStorage.getItem('gh_gist');
-    const body=JSON.stringify({description:'Portfolio Tracker Data (auto-sync)',public:false,files:{'portfolio_data.json':{content:JSON.stringify(getSyncData(),null,2)}}});
-    let r;
-    if(gid){
-      r=await fetch('https://api.github.com/gists/'+gid,{method:'PATCH',headers:{'Authorization':'token '+token,'Content-Type':'application/json'},body:body});
-      if(r.status===404){gid=null;}
-    }
-    if(!gid){
-      r=await fetch('https://api.github.com/gists',{method:'POST',headers:{'Authorization':'token '+token,'Content-Type':'application/json'},body:body});
-    }
-    if(r&&r.ok){
-      const d=await r.json();
-      localStorage.setItem('gh_gist',d.id);if(I('ghg'))I('ghg').value=d.id;
-      showSync('✅ Cloud sync done!',true);
-    }else{
-      const err=await r.text();
-      showSync('❌ Sync fail — token check karo',false);
-      console.error('Gist sync error:',err);
-    }
-  }catch(e){showSync('❌ Network error',false);console.error(e);}
-  btn.innerHTML='☁️ Sync';btn.disabled=false;
+function updateCloudUI(){
+  const cid=getCloudId();
+  const setup=I('cloudSetup'),active=I('cloudActive'),off=I('cloudOff'),badge=I('syncBadge');
+  if(CLOUD_ID){
+    if(setup)setup.style.display='none';if(active)active.style.display='block';if(off)off.style.display='none';
+    if(I('cidActive'))I('cidActive').textContent=CLOUD_ID;
+    if(badge)badge.textContent='• Auto-sync ON';
+  }else if(cid){
+    if(setup)setup.style.display='block';if(active)active.style.display='none';if(off)off.style.display='none';
+    if(I('cidShow'))I('cidShow').textContent=cid;
+    if(badge){badge.textContent='• Setup pending';badge.style.color='var(--amb)';}
+  }else{
+    if(setup)setup.style.display='none';if(active)active.style.display='none';if(off)off.style.display='block';
+    if(badge){badge.textContent='• Off';badge.style.color='var(--mut)';}
+  }
 }
-async function cloudPull(){
-  const token=localStorage.getItem('gh_token'),gid=localStorage.getItem('gh_gist');
-  if(!token||!gid){alert('Token aur Gist ID dono chahiye! Pehle ek baar Push karo.');return;}
+async function autoCloudPush(){
+  const cid=getCloudId();if(!cid)return;
   try{
-    const r=await fetch('https://api.github.com/gists/'+gid,{headers:{'Authorization':'token '+token}});
-    if(!r.ok){showSync('❌ Pull fail — '+r.status,false);return;}
-    const d=await r.json();
-    const content=d.files['portfolio_data.json']?.content;
-    if(!content){showSync('❌ Gist mein data nahi mila',false);return;}
-    const data=JSON.parse(content);
-    if(data.cv)Object.assign(CV,data.cv);
-    if(data.hist&&Array.isArray(data.hist))HIST=data.hist;
-    if(data.reminders)reminders=data.reminders;
-    if(data.checklist)checklist=data.checklist;
-    save();renderH();renderHist();renderRem();
-    showSync('✅ Cloud se data restore ho gaya!',true);
+    await fetch(CLOUD_API+'/'+cid,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(getSyncData())});
+    showSync('☁️ Synced',true);
+  }catch(e){console.error('Auto-sync fail:',e);}
+}
+async function firstCloudSave(){
+  try{
+    const r=await fetch(CLOUD_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(getSyncData())});
+    if(r.ok||r.status===201){
+      const loc=r.headers.get('Location');
+      if(loc){
+        const cid=loc.split('/').pop();
+        localStorage.setItem('cloud_id',cid);
+        updateCloudUI();
+        showSync('✅ Cloud save done! Ab code mein CLOUD_ID update karo.',true);
+      }
+    }else{showSync('❌ Save fail',false);}
   }catch(e){showSync('❌ Network error',false);console.error(e);}
+}
+async function autoCloudLoad(){
+  const cid=getCloudId();if(!cid)return;
+  try{
+    const r=await fetch(CLOUD_API+'/'+cid);
+    if(!r.ok)return;
+    const data=await r.json();
+    if(!data.cv)return;
+    // Use cloud data if it's newer
+    const cloudDate=new Date(data.date||0).getTime();
+    const localDate=new Date(localStorage.getItem('pf_date')||0).getTime();
+    if(cloudDate>localDate){
+      Object.assign(CV,data.cv);
+      if(data.hist&&Array.isArray(data.hist))HIST=data.hist;
+      if(data.reminders)reminders=data.reminders;
+      if(data.checklist)checklist=data.checklist;
+      localStorage.setItem('pf_date',data.date);
+      renderH();renderHist();
+    }
+  }catch(e){console.error('Auto-load fail:',e);}
 }
 
 // EXPORT / IMPORT
@@ -672,7 +701,9 @@ function importJSON(e){
 }
 
 // INIT
-loadData();renderH();renderHist();
+loadData();renderH();renderHist();updateCloudUI();
+// Auto-load from cloud on page open
+autoCloudLoad();
 </script>
 </body>
 </html>
