@@ -243,13 +243,23 @@ tr:hover td{background:#fbfbf7}
       </div>
     </div>
     <div class="pnl" style="margin-bottom:13px">
-      <div class="ph">☁️ Cloud Sync <span id="syncBadge" style="font-size:11px;font-weight:400;color:var(--pos)">• Auto-sync ON</span></div>
+      <div class="ph">☁️ Cloud Sync <span id="syncBadge" style="font-size:11px;font-weight:400"></span></div>
       <div class="pb">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-          <span style="font-size:22px">✅</span>
-          <div><b style="font-size:14px">Auto-Sync Active</b><br><span style="font-size:12px;color:var(--mut)">Data har change pe automatically cloud pe save hota hai aur page open karte hi load hota hai.</span></div>
+        <div id="syncSetup" style="display:none">
+          <div class="ntc" style="margin-bottom:10px">🔑 <b>Ek baar setup:</b> GitHub token banao (sirf <b>repo</b> scope) aur neeche paste karo. Phir lifetime auto-sync!
+            <br><a href="https://github.com/settings/tokens/new?scopes=repo&description=Portfolio+Tracker" target="_blank" style="color:var(--blue);font-weight:600">→ Click here to create token ←</a>
+          </div>
+          <div class="ff" style="max-width:400px"><label>GitHub Token</label><input type="password" id="ght" placeholder="Paste token here..." oninput="saveGHToken(this.value)"/></div>
+          <button class="btn btn-blue" style="margin-top:4px" onclick="testAndSync()">☁️ Connect & Sync</button>
+          <span id="syncMsg" style="font-size:12px;display:none;margin-left:8px"></span>
         </div>
-        <span id="syncMsg" style="font-size:12px;display:none"></span>
+        <div id="syncActive" style="display:none">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+            <span style="font-size:22px">✅</span>
+            <div><b style="font-size:14px">Auto-Sync Active</b><br><span style="font-size:12px;color:var(--mut)">Har change pe auto-save, har page open pe auto-load. Kisi bhi browser mein kaam karega (token paste karo bas).</span></div>
+          </div>
+          <span id="syncMsg2" style="font-size:12px;display:none"></span>
+        </div>
       </div>
     </div>
     <div class="pnl" style="margin-bottom:13px">
@@ -290,7 +300,9 @@ tr:hover td{background:#fbfbf7}
 
 <script>
 // ============================================
-const CLOUD_ID = '019dcd8a-0ee3-758e-a82f-e328890affef';
+// GitHub repo config (don't change)
+const GH_REPO = 'anil1791/portfolio-tracker';
+const GH_FILE = 'data.json';
 // ============================================
 
 const ASSETS=[
@@ -555,7 +567,7 @@ function save(){
     localStorage.setItem('pf_date',now);
   }catch(e){}
   // Auto cloud sync (debounced 3s)
-  if(CLOUD_ID){
+  if(localStorage.getItem('gh_token')){
     clearTimeout(_syncTimer);
     _syncTimer=setTimeout(()=>autoCloudPush(),3000);
   }
@@ -568,6 +580,9 @@ function loadData(){
     const cl=localStorage.getItem('pf_c');if(cl)checklist=JSON.parse(cl);
     const zk=localStorage.getItem('key_zerodha'),ek=localStorage.getItem('key_etrade');
     if(zk)I('zk').value=zk;if(ek)I('ek').value=ek;
+    const ght=localStorage.getItem('gh_token');
+    if(ght&&I('ght'))I('ght').value=ght;
+    updateSyncUI();
   }catch(e){}
 }
 
@@ -586,27 +601,54 @@ function doExcel(){
   XLSX.writeFile(wb,'portfolio_'+new Date().toISOString().split('T')[0]+'.xlsx');
 }
 
-// CLOUD SYNC (JSONBlob — fully automatic, ID already created)
-const CLOUD_API='https://jsonblob.com/api/jsonBlob';
+// CLOUD SYNC (GitHub Repo — data.json in same repo, CORS enabled)
 function getSyncData(){
   return{version:3,date:new Date().toISOString(),cv:CV,hist:HIST,reminders:reminders,checklist:checklist};
 }
 function showSync(msg,ok){
-  const el=I('syncMsg');if(el){el.textContent=msg;el.style.color=ok?'var(--pos)':'var(--neg)';el.style.display='inline';setTimeout(()=>el.style.display='none',4000);}
+  ['syncMsg','syncMsg2'].forEach(id=>{const el=I(id);if(el){el.textContent=msg;el.style.color=ok?'var(--pos)':'var(--neg)';el.style.display='inline';setTimeout(()=>el.style.display='none',5000);}});
   const st=I('syncSt');if(st){st.textContent=ok?'☁️ Synced':'⚠️';st.style.color=ok?'var(--pos)':'var(--neg)';st.style.display='inline';setTimeout(()=>st.style.display='none',5000);}
 }
-async function autoCloudPush(){
-  if(!CLOUD_ID)return;
+function saveGHToken(v){if(v)localStorage.setItem('gh_token',v);updateSyncUI();}
+function updateSyncUI(){
+  const token=localStorage.getItem('gh_token');
+  const badge=I('syncBadge'),setup=I('syncSetup'),active=I('syncActive');
+  if(token){
+    if(setup)setup.style.display='none';if(active)active.style.display='block';
+    if(badge){badge.textContent='• Auto-sync ON';badge.style.color='var(--pos)';}
+  }else{
+    if(setup)setup.style.display='block';if(active)active.style.display='none';
+    if(badge){badge.textContent='• Setup needed';badge.style.color='var(--amb)';}
+  }
+}
+async function getFileSha(){
+  const token=localStorage.getItem('gh_token');if(!token)return null;
   try{
-    const r=await fetch(CLOUD_API+'/'+CLOUD_ID,{method:'PUT',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(getSyncData())});
-    if(r.ok)showSync('☁️ Synced',true);
-    else console.error('Sync fail:',r.status);
-  }catch(e){console.error('Auto-sync fail:',e);}
+    const r=await fetch('https://api.github.com/repos/'+GH_REPO+'/contents/'+GH_FILE,{headers:{'Authorization':'token '+token,'Accept':'application/vnd.github.v3+json'}});
+    if(r.ok){const d=await r.json();return d.sha;}
+  }catch(e){}
+  return null;
+}
+async function autoCloudPush(){
+  const token=localStorage.getItem('gh_token');if(!token)return;
+  try{
+    const sha=await getFileSha();
+    const content=btoa(unescape(encodeURIComponent(JSON.stringify(getSyncData(),null,2))));
+    const body={message:'Auto-sync '+new Date().toLocaleString('en-IN'),content:content};
+    if(sha)body.sha=sha;
+    const r=await fetch('https://api.github.com/repos/'+GH_REPO+'/contents/'+GH_FILE,{
+      method:'PUT',
+      headers:{'Authorization':'token '+token,'Content-Type':'application/json','Accept':'application/vnd.github.v3+json'},
+      body:JSON.stringify(body)
+    });
+    if(r.ok||r.status===201)showSync('☁️ Synced',true);
+    else{const e=await r.text();console.error('Push fail:',r.status,e);showSync('❌ Sync fail ('+r.status+')',false);}
+  }catch(e){console.error('Push error:',e);}
 }
 async function autoCloudLoad(){
-  if(!CLOUD_ID)return;
   try{
-    const r=await fetch(CLOUD_API+'/'+CLOUD_ID,{headers:{'Accept':'application/json'}});
+    // Read from raw.githubusercontent.com (no token needed, CORS enabled)
+    const r=await fetch('https://raw.githubusercontent.com/'+GH_REPO+'/main/'+GH_FILE+'?t='+Date.now());
     if(!r.ok)return;
     const data=await r.json();
     if(!data.cv)return;
@@ -619,8 +661,21 @@ async function autoCloudLoad(){
       if(data.checklist)checklist=data.checklist;
       localStorage.setItem('pf_date',data.date);
       renderH();renderHist();
+      showSync('☁️ Loaded from cloud',true);
     }
   }catch(e){console.error('Auto-load fail:',e);}
+}
+async function testAndSync(){
+  const token=localStorage.getItem('gh_token');
+  if(!token){alert('Token paste karo pehle!');return;}
+  showSync('⏳ Testing...',true);
+  try{
+    const r=await fetch('https://api.github.com/user',{headers:{'Authorization':'token '+token}});
+    if(!r.ok){showSync('❌ Token invalid — check karo',false);return;}
+    updateSyncUI();
+    await autoCloudPush();
+    showSync('✅ Connected & synced!',true);
+  }catch(e){showSync('❌ Network error: '+e.message,false);}
 }
 
 // EXPORT / IMPORT
