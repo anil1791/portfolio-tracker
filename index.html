@@ -605,8 +605,8 @@ function doExcel(){
   XLSX.writeFile(wb,'portfolio_'+new Date().toISOString().split('T')[0]+'.xlsx');
 }
 
-// CLOUD SYNC (JSONBlob — fully automatic)
-const CLOUD_API='https://jsonblob.com/api/jsonBlob';
+// CLOUD SYNC (npoint.io — free, no signup, no token, CORS enabled)
+const CLOUD_API='https://api.npoint.io';
 function getCloudId(){return CLOUD_ID||localStorage.getItem('cloud_id')||'';}
 function getSyncData(){
   return{version:3,date:new Date().toISOString(),cv:CV,hist:HIST,reminders:reminders,checklist:checklist};
@@ -634,23 +634,34 @@ function updateCloudUI(){
 async function autoCloudPush(){
   const cid=getCloudId();if(!cid)return;
   try{
-    await fetch(CLOUD_API+'/'+cid,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(getSyncData())});
+    await fetch(CLOUD_API+'/'+cid,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(getSyncData())});
     showSync('☁️ Synced',true);
   }catch(e){console.error('Auto-sync fail:',e);}
 }
 async function firstCloudSave(){
   try{
     const r=await fetch(CLOUD_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(getSyncData())});
-    if(r.ok||r.status===201){
-      const loc=r.headers.get('Location');
-      if(loc){
-        const cid=loc.split('/').pop();
-        localStorage.setItem('cloud_id',cid);
-        updateCloudUI();
-        showSync('✅ Cloud save done! Ab code mein CLOUD_ID update karo.',true);
+    if(r.ok){
+      const data=await r.json();
+      // npoint returns the full URL, extract the ID
+      let cid='';
+      if(data.id)cid=data.id;
+      else if(typeof data==='string')cid=data;
+      else{
+        // try to get from response - npoint returns the bin path
+        const txt=JSON.stringify(data);
+        const match=txt.match(/[a-f0-9]{20,}/i);
+        if(match)cid=match[0];
       }
-    }else{showSync('❌ Save fail',false);}
-  }catch(e){showSync('❌ Network error',false);console.error(e);}
+      if(!cid){
+        // If ID not in response, try the redirect approach
+        showSync('❌ ID nahi mila — retry karo',false);return;
+      }
+      localStorage.setItem('cloud_id',cid);
+      updateCloudUI();
+      showSync('✅ Cloud ID: '+cid+' — ab code mein daalo!',true);
+    }else{showSync('❌ Save fail ('+r.status+')',false);}
+  }catch(e){showSync('❌ Network error: '+e.message,false);console.error(e);}
 }
 async function autoCloudLoad(){
   const cid=getCloudId();if(!cid)return;
@@ -659,7 +670,6 @@ async function autoCloudLoad(){
     if(!r.ok)return;
     const data=await r.json();
     if(!data.cv)return;
-    // Use cloud data if it's newer
     const cloudDate=new Date(data.date||0).getTime();
     const localDate=new Date(localStorage.getItem('pf_date')||0).getTime();
     if(cloudDate>localDate){
