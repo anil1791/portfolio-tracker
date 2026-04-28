@@ -245,19 +245,23 @@ tr:hover td{background:#fbfbf7}
     <div class="pnl" style="margin-bottom:13px">
       <div class="ph">☁️ Cloud Sync <span id="syncBadge" style="font-size:11px;font-weight:400"></span></div>
       <div class="pb">
-        <div id="syncSetup" style="display:none">
-          <div class="ntc" style="margin-bottom:10px">🔑 <b>Ek baar setup:</b> GitHub token banao (sirf <b>repo</b> scope) aur neeche paste karo. Phir lifetime auto-sync!
-            <br><a href="https://github.com/settings/tokens/new?scopes=repo&description=Portfolio+Tracker" target="_blank" style="color:var(--blue);font-weight:600">→ Click here to create token ←</a>
+        <div id="syncSetup">
+          <div class="ntc" style="margin-bottom:10px">
+            <b>Ek baar setup (2 min):</b><br>
+            1️⃣ <a href="https://console.firebase.google.com/" target="_blank" style="color:var(--blue);font-weight:600">Firebase Console</a> kholo → <b>"Create a project"</b> click karo → koi bhi naam do → Next Next karte jao → project ban jayega<br>
+            2️⃣ Left menu mein <b>"Build" → "Realtime Database"</b> click karo → <b>"Create Database"</b> → <b>"Start in test mode"</b> select karo → Enable<br>
+            3️⃣ Upar ek URL dikhega jaise <code>https://xxx-default-rtdb.firebaseio.com</code> → wo copy karo aur neeche paste karo
           </div>
-          <div class="ff" style="max-width:400px"><label>GitHub Token</label><input type="password" id="ght" placeholder="Paste token here..." oninput="saveGHToken(this.value)"/></div>
-          <button class="btn btn-blue" style="margin-top:4px" onclick="testAndSync()">☁️ Connect & Sync</button>
+          <div class="ff" style="max-width:500px"><label>Firebase Database URL</label><input id="fburl" placeholder="https://your-project-default-rtdb.firebaseio.com" oninput="saveFBUrl(this.value)"/></div>
+          <button class="btn btn-blue" style="margin-top:4px" onclick="testFirebase()">☁️ Connect & Sync</button>
           <span id="syncMsg" style="font-size:12px;display:none;margin-left:8px"></span>
         </div>
         <div id="syncActive" style="display:none">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
             <span style="font-size:22px">✅</span>
-            <div><b style="font-size:14px">Auto-Sync Active</b><br><span style="font-size:12px;color:var(--mut)">Har change pe auto-save, har page open pe auto-load. Kisi bhi browser mein kaam karega (token paste karo bas).</span></div>
+            <div><b style="font-size:14px">Auto-Sync Active</b><br><span style="font-size:12px;color:var(--mut)">Data har change pe auto-save, har page open pe auto-load. Kisi bhi browser mein bas ye URL paste karo → done.</span></div>
           </div>
+          <div style="font-size:11px;color:var(--mut);margin-top:4px">DB: <span id="fbUrlShow"></span></div>
           <span id="syncMsg2" style="font-size:12px;display:none"></span>
         </div>
       </div>
@@ -300,9 +304,8 @@ tr:hover td{background:#fbfbf7}
 
 <script>
 // ============================================
-// GitHub repo config (don't change)
-const GH_REPO = 'anil1791/portfolio-tracker';
-const GH_FILE = 'data.json';
+// Firebase Database URL - Settings tab mein paste karo
+let FIREBASE_URL = localStorage.getItem('fb_url')||'';
 // ============================================
 
 const ASSETS=[
@@ -567,7 +570,7 @@ function save(){
     localStorage.setItem('pf_date',now);
   }catch(e){}
   // Auto cloud sync (debounced 3s)
-  if(localStorage.getItem('gh_token')){
+  if(FIREBASE_URL){
     clearTimeout(_syncTimer);
     _syncTimer=setTimeout(()=>autoCloudPush(),3000);
   }
@@ -580,8 +583,7 @@ function loadData(){
     const cl=localStorage.getItem('pf_c');if(cl)checklist=JSON.parse(cl);
     const zk=localStorage.getItem('key_zerodha'),ek=localStorage.getItem('key_etrade');
     if(zk)I('zk').value=zk;if(ek)I('ek').value=ek;
-    const ght=localStorage.getItem('gh_token');
-    if(ght&&I('ght'))I('ght').value=ght;
+    if(FIREBASE_URL&&I('fburl'))I('fburl').value=FIREBASE_URL;
     updateSyncUI();
   }catch(e){}
 }
@@ -601,7 +603,7 @@ function doExcel(){
   XLSX.writeFile(wb,'portfolio_'+new Date().toISOString().split('T')[0]+'.xlsx');
 }
 
-// CLOUD SYNC (GitHub Repo — data.json in same repo, CORS enabled)
+// CLOUD SYNC (Firebase Realtime Database — REST API, CORS enabled, no SDK)
 function getSyncData(){
   return{version:3,date:new Date().toISOString(),cv:CV,hist:HIST,reminders:reminders,checklist:checklist};
 }
@@ -609,49 +611,37 @@ function showSync(msg,ok){
   ['syncMsg','syncMsg2'].forEach(id=>{const el=I(id);if(el){el.textContent=msg;el.style.color=ok?'var(--pos)':'var(--neg)';el.style.display='inline';setTimeout(()=>el.style.display='none',5000);}});
   const st=I('syncSt');if(st){st.textContent=ok?'☁️ Synced':'⚠️';st.style.color=ok?'var(--pos)':'var(--neg)';st.style.display='inline';setTimeout(()=>st.style.display='none',5000);}
 }
-function saveGHToken(v){if(v)localStorage.setItem('gh_token',v);updateSyncUI();}
+function saveFBUrl(v){
+  v=v.trim().replace(/\/$/,'');
+  localStorage.setItem('fb_url',v);FIREBASE_URL=v;
+  updateSyncUI();
+}
 function updateSyncUI(){
-  const token=localStorage.getItem('gh_token');
   const badge=I('syncBadge'),setup=I('syncSetup'),active=I('syncActive');
-  if(token){
+  if(FIREBASE_URL){
     if(setup)setup.style.display='none';if(active)active.style.display='block';
     if(badge){badge.textContent='• Auto-sync ON';badge.style.color='var(--pos)';}
+    if(I('fbUrlShow'))I('fbUrlShow').textContent=FIREBASE_URL;
   }else{
     if(setup)setup.style.display='block';if(active)active.style.display='none';
     if(badge){badge.textContent='• Setup needed';badge.style.color='var(--amb)';}
   }
 }
-async function getFileSha(){
-  const token=localStorage.getItem('gh_token');if(!token)return null;
-  try{
-    const r=await fetch('https://api.github.com/repos/'+GH_REPO+'/contents/'+GH_FILE,{headers:{'Authorization':'token '+token,'Accept':'application/vnd.github.v3+json'}});
-    if(r.ok){const d=await r.json();return d.sha;}
-  }catch(e){}
-  return null;
-}
 async function autoCloudPush(){
-  const token=localStorage.getItem('gh_token');if(!token)return;
+  if(!FIREBASE_URL)return;
   try{
-    const sha=await getFileSha();
-    const content=btoa(unescape(encodeURIComponent(JSON.stringify(getSyncData(),null,2))));
-    const body={message:'Auto-sync '+new Date().toLocaleString('en-IN'),content:content};
-    if(sha)body.sha=sha;
-    const r=await fetch('https://api.github.com/repos/'+GH_REPO+'/contents/'+GH_FILE,{
-      method:'PUT',
-      headers:{'Authorization':'token '+token,'Content-Type':'application/json','Accept':'application/vnd.github.v3+json'},
-      body:JSON.stringify(body)
-    });
-    if(r.ok||r.status===201)showSync('☁️ Synced',true);
-    else{const e=await r.text();console.error('Push fail:',r.status,e);showSync('❌ Sync fail ('+r.status+')',false);}
-  }catch(e){console.error('Push error:',e);}
+    const r=await fetch(FIREBASE_URL+'/portfolio.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(getSyncData())});
+    if(r.ok)showSync('☁️ Synced',true);
+    else showSync('❌ Sync fail ('+r.status+')',false);
+  }catch(e){console.error('Push fail:',e);}
 }
 async function autoCloudLoad(){
+  if(!FIREBASE_URL)return;
   try{
-    // Read from raw.githubusercontent.com (no token needed, CORS enabled)
-    const r=await fetch('https://raw.githubusercontent.com/'+GH_REPO+'/main/'+GH_FILE+'?t='+Date.now());
+    const r=await fetch(FIREBASE_URL+'/portfolio.json');
     if(!r.ok)return;
     const data=await r.json();
-    if(!data.cv)return;
+    if(!data||!data.cv)return;
     const cloudDate=new Date(data.date||0).getTime();
     const localDate=new Date(localStorage.getItem('pf_date')||0).getTime();
     if(cloudDate>localDate){
@@ -663,18 +653,23 @@ async function autoCloudLoad(){
       renderH();renderHist();
       showSync('☁️ Loaded from cloud',true);
     }
-  }catch(e){console.error('Auto-load fail:',e);}
+  }catch(e){console.error('Load fail:',e);}
 }
-async function testAndSync(){
-  const token=localStorage.getItem('gh_token');
-  if(!token){alert('Token paste karo pehle!');return;}
+async function testFirebase(){
+  if(!FIREBASE_URL){alert('Firebase URL paste karo pehle!');return;}
   showSync('⏳ Testing...',true);
   try{
-    const r=await fetch('https://api.github.com/user',{headers:{'Authorization':'token '+token}});
-    if(!r.ok){showSync('❌ Token invalid — check karo',false);return;}
-    updateSyncUI();
-    await autoCloudPush();
-    showSync('✅ Connected & synced!',true);
+    // Test write
+    const r=await fetch(FIREBASE_URL+'/portfolio.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(getSyncData())});
+    if(!r.ok){showSync('❌ Fail ('+r.status+') — URL check karo ya Test Mode enable karo',false);return;}
+    // Test read
+    const r2=await fetch(FIREBASE_URL+'/portfolio.json');
+    if(!r2.ok){showSync('❌ Read fail',false);return;}
+    const data=await r2.json();
+    if(data&&data.version){
+      updateSyncUI();
+      showSync('✅ Connected! Data synced! 🎉',true);
+    }else{showSync('❌ Data verify fail',false);}
   }catch(e){showSync('❌ Network error: '+e.message,false);}
 }
 
